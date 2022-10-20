@@ -1,3 +1,4 @@
+import http
 import requests
 import os
 from bs4 import BeautifulSoup
@@ -34,14 +35,26 @@ def extract_details(post_link):
         if res.status_code==200:
             soup=BeautifulSoup(res.text,"html.parser")
             # text_data=[i.get_text() for i in soup.find("div",class_="widget Blog").find_all("p",attrs={"style":"text-align: justify;"})]
-            text_lst=[""+"^"+i.get_text() if i.findChildren("table")  else i.get_text() for i in soup.find("div",class_="widget Blog").find_all("p",attrs={"style":"text-align: justify;"})]
+            try:
+               text_lst=[""+"^"+i.get_text() if i.findChildren("table")  else i.get_text() for i in soup.find("div",class_="widget Blog").find_all("p",attrs={"style":"text-align: justify;"})]
+            except:                                                     # Change occured
+               text_lst=[""+"^"+i.get_text() if i.findChildren("table")  else i.get_text() for i in soup.find("div",class_="widget Blog").find_all("div",attrs={"style":"text-align: justify;"})] # Change occured
+                
             for text in text_lst:
                 if text.startswith("^"):
-                    text_data.extend(text.split("^"))
+                    data=text.split("^")
+                    if data[1]!="":
+                        data[1]="img"+data[1]
+                    text_data.extend(data)
                 else:
                     text_data.append(text)
+            
             title=soup.find("h3",class_="post-title entry-title").get_text(strip=True)
+            
             images=soup.find("div",class_="widget Blog").find_all("img")[:-1]
+            # print("=====================================")                # Changes occured
+            # print(images)                                                 # Change occured    
+            # print("=====================================")                # Change occured
             file=post_link.split("/")[-1].split(".")[0]
             tags=[tag.get_text(strip=True) for tag in soup.find("span",class_="post-labels").find_all("a")]
             filtered_tags=[i.split(".")[-1].strip() if "." in i else i for i in tags ]
@@ -55,6 +68,7 @@ def extract_details(post_link):
 def make_markdown(file,write_path,text_data,title,filtered_tags,count,year_path,post_link):
 
     try:     
+        eliminate_text=0
         markdown_path=write_path+"\\"+year_path+"\\"+file+"\\"+"index"
         mdFile = MdUtils(file_name=markdown_path+"temp.md")
         count=count+1
@@ -76,15 +90,28 @@ def make_markdown(file,write_path,text_data,title,filtered_tags,count,year_path,
         mdFile.new_list(items=filtered_tags,marked_with="  -")      
         mdFile.write(format_data)
         for text in text_data:
+            pos=0
             if ".jpg" in text:
-                mdFile.new_line(mdFile.new_inline_image(text="image", path=text))
+                next_index=text_data.index(text)
+                eliminate=next_index+1
+                img_text=text_data[eliminate]
+                if img_text.startswith("img"):
+                    img_text=img_text.replace("img","")
+                    eliminate_text=eliminate
+                    mdFile.new_line(mdFile.new_inline_image(text=img_text, path=text))
+                else:
+                    mdFile.new_line(mdFile.new_inline_image(text=title, path=text))
             else:
-                mdFile.new_paragraph(text)
+                if pos==0 and eliminate_text:
+                    eliminate_text=0
+                    pass
+                else:
+                    mdFile.new_paragraph(text)
             mdFile.write('\n')
         mdFile.create_md_file()
         md_data=mdFile.read_md_file(markdown_path+"temp.md")
         md_data=md_data.lstrip("\n").strip().lstrip("\n")
-        with open(markdown_path+".md" ,"w") as final_data:
+        with open(markdown_path+".md" ,"w",encoding='utf-8') as final_data:
             final_data.write(md_data)
 
         #os.rename(markdown_path+"temp.md", markdown_path+".md")
@@ -100,7 +127,11 @@ def extract_images(images,write_path,file,empty_text,year_path):
             os.makedirs(jpg_folder)
 
         for img in range(len(images)):
-            res=requests.get(images[img]['src'])        
+            if not images[img]['src'].startswith("http:",0):                    # Change occured
+                res = requests.get("http:" + images[img]['src'])                # Change occured
+                # res=requests.get(images[img]['src'])                          # Change occured
+            else:                                                               # Change occured
+                res=requests.get(images[img]['src'])                            # Change occured
             img_path=jpg_folder+"\\"+"img"+str(img)+".jpg"
 
             with open(img_path,"wb") as data:
@@ -134,8 +165,10 @@ if __name__ == "__main__":
     else:
         print("path exists")
     os.chdir(write_path)
-    year=int(input("Enter Year between 2012 -2021 : "))
-    month=input("Enter Month : ")
+    # year=int(input("Enter Year between 2012 -2021 : "))
+    # month=input("Enter Month : ")
+    year = 2012
+    month = '12'
     if len(month)==1:
         month="0"+month
         
